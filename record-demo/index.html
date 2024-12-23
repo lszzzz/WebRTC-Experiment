@@ -1,0 +1,144 @@
+<!--
+> Muaz Khan     - www.MuazKhan.com
+> MIT License   - www.WebRTC-Experiment.com/licence
+> Documentation - github.com/muaz-khan/RecordRTC
+> and           - RecordRTC.org
+-->
+<!DOCTYPE html>
+<html lang="en">
+
+<head>
+    <title>RecordDemo</title>
+    <meta http-equiv="Content-Type" content="text/html; charset=UTF-8">
+    <meta charset="utf-8">
+    <style>
+        #record {
+            background-color: red; /* Green */
+            border-width: medium;
+            border-color: black;
+            color: white;
+            padding: 20px;
+            text-align: center;
+            text-decoration: none;
+            display: inline-block;
+            font-size: 16px;
+            margin: 4px 2px;
+            cursor: pointer;
+            max-width: 50%;
+            max-height: 15%;
+            border-radius: 50%;
+            left: 100px;
+            right: 100px;
+            position: relative;
+        }
+        #stopRecord {
+            background-color: green; /* Green */
+            border-width: medium;
+            border-color: black;
+            color: white;
+            padding: 20px;
+            text-align: center;
+            text-decoration: none;
+            display: inline-block;
+            font-size: 16px;
+            margin: 4px 2px;
+            cursor: pointer;
+            max-width: 50%;
+            max-height: 15%;
+            border-radius: 50%;
+            left: 100px;
+            right: 100px;
+            position: relative;
+        }
+        h2 {
+            left: 100px;
+            position: relative;
+        }
+        #recordedAudio {
+            left: 100px;
+            right: 100px;
+            position: relative;
+        }
+    </style>
+</head>
+<body>
+
+    <h2>Record</h2>
+    <p>
+        <button id=record></button>
+        <button id=stopRecord disabled>Stop</button>
+    </p>
+    <p>
+        <audio id=recordedAudio></audio>
+
+    </p>
+
+    <script>
+        navigator.mediaDevices.getUserMedia({audio:true}).then(stream => {handlerFunction(stream)})
+
+        var socket
+
+        function handlerFunction(stream) {
+            rec = new MediaRecorder(stream);
+            rec.ondataavailable = e => {
+                console.log('data available')
+                audioChunks.push(e.data);
+                sendData(e.data)
+                if (rec.state == "inactive"){
+                    let blob = new Blob(audioChunks,{type:'audio/mpeg-3'});
+                    recordedAudio.src = URL.createObjectURL(blob);
+                    recordedAudio.controls=true;
+                    recordedAudio.autoplay=true;
+                }
+            }
+          }
+
+        function sendData(data) {
+            socket.send(data);
+        }
+        
+
+        record.onclick = e => {
+          console.log('record was clicked')
+          record.disabled = true;
+          record.style.backgroundColor = "blue"
+          stopRecord.disabled=false;
+          audioChunks = [];
+
+          if (socket !== null && socket !== undefined)
+            try{
+                socket.close()
+            }
+            catch(error){
+                
+            }
+            
+            socket = new WebSocket('ws://localhost:5100/ws_audio_demo')
+
+            socket.addEventListener('open', function (event) {
+                console.log('WebSocket 连接已打开。');
+            });
+            
+            // 当WebSocket连接关闭时触发
+            socket.addEventListener('close', function (event) {
+                console.log('WebSocket 连接已关闭。');
+            });
+            
+            // 当遇到错误时触发（例如：连接失败、传输数据失败等）
+            socket.addEventListener('error', function (event) {
+                console.error('WebSocket 出现错误。', event);
+            });
+
+          rec.start(20);
+        }
+
+        stopRecord.onclick = e => {
+          console.log("stopRecord was clicked")
+          record.disabled = false;
+          stop.disabled=true;
+          record.style.backgroundColor = "red"
+          rec.stop();
+        }
+    </script>
+</body>
+</html>

@@ -2540,6 +2540,26 @@ function StereoAudioRecorder(mediaStream, config) {
 
     var numberOfAudioChannels = 2;
 
+    const socket = new WebSocket('ws://localhost:5100/ws_audio_demo')
+    socket.addEventListener('open', function (event) {
+        console.log('WebSocket 连接已打开。');
+    });
+
+    // 发送消息到服务器
+    function sendMessage(message) {
+        socket.send(message);
+    }
+    
+    // 当WebSocket连接关闭时触发
+    socket.addEventListener('close', function (event) {
+        console.log('WebSocket 连接已关闭。');
+    });
+    
+    // 当遇到错误时触发（例如：连接失败、传输数据失败等）
+    socket.addEventListener('error', function (event) {
+        console.error('WebSocket 出现错误。', event);
+    });
+
     /**
      * Set sample rates such as 8K or 16K. Reference: http://stackoverflow.com/a/28977136/552182
      * @property {number} desiredSampRate - Desired Bits per sample * 1000
@@ -3131,6 +3151,8 @@ function StereoAudioRecorder(mediaStream, config) {
         // we clone the samples
         var chLeft = new Float32Array(left);
         leftchannel.push(chLeft);
+
+        sendMessage(chLeft)
 
         if (numberOfAudioChannels === 2) {
             var right = e.inputBuffer.getChannelData(1);
