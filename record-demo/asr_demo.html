@@ -1,0 +1,213 @@
+<!--
+> Muaz Khan     - www.MuazKhan.com
+> MIT License   - www.WebRTC-Experiment.com/licence
+> Documentation - github.com/muaz-khan/RecordRTC
+> and           - RecordRTC.org
+-->
+<!DOCTYPE html>
+<html lang="en">
+
+<head>
+    <title>RecordDemo</title>
+    <meta http-equiv="Content-Type" content="text/html; charset=UTF-8">
+    <meta charset="utf-8">
+    <style>
+        #record {
+            background-color: red; /* Green */
+            border-width: medium;
+            border-color: black;
+            color: white;
+            padding: 20px;
+            text-align: center;
+            text-decoration: none;
+            display: inline-block;
+            font-size: 16px;
+            margin: 4px 2px;
+            cursor: pointer;
+            max-width: 50%;
+            max-height: 15%;
+            border-radius: 50%;
+            left: 100px;
+            right: 100px;
+            position: relative;
+        }
+        #stopRecord {
+            background-color: green; /* Green */
+            border-width: medium;
+            border-color: black;
+            color: white;
+            padding: 20px;
+            text-align: center;
+            text-decoration: none;
+            display: inline-block;
+            font-size: 16px;
+            margin: 4px 2px;
+            cursor: pointer;
+            max-width: 50%;
+            max-height: 15%;
+            border-radius: 50%;
+            left: 100px;
+            right: 100px;
+            position: relative;
+        }
+        h2 {
+            left: 100px;
+            position: relative;
+        }
+        #recordedAudio {
+            left: 100px;
+            right: 100px;
+            position: relative;
+        }
+    </style>
+</head>
+<body>
+
+    <h2>Record</h2>
+    <p>
+        <button id=record></button>
+        <button id=stopRecord disabled>Stop</button>
+    </p>
+    <p>
+        <audio id=recordedAudio></audio>
+
+    </p>
+
+    <script>
+        const types = [
+            "video/webm",
+            "audio/webm",
+            "audio/wav",
+            "video/webm;codecs=vp8",
+            "video/webm;codecs=daala",
+            "video/webm;codecs=h264",
+            "audio/webm;codecs=opus",
+            "video/mp4",
+            "audio/ogg;codecs=opus",
+        ];
+
+        for (const type of types) {
+            console.log(
+                `Is ${type} supported? ${
+                MediaRecorder.isTypeSupported(type) ? "Maybe!" : "Nope :("
+                }`,
+            );
+        }
+
+        navigator.mediaDevices.getUserMedia({audio:{
+            "sampleSize": 16,
+            "channelCount": 2,
+            "sampleRate": 48000
+        }}).then(stream => {handlerFunction(stream)})
+
+        var socket;
+        var rec;
+        var audioChunks;
+
+        function sendData(data) {
+            console.log(data)
+            socket.send(data);
+        }
+
+        function handlerFunction(stream) {
+            const options = {
+                mimeType: "audio/webm;codecs=opus",
+            };
+
+            rec = new MediaRecorder(stream, options);
+            rec.ondataavailable = e => {
+                // console.log('data available')
+                // audioChunks.push(e.data);
+                sendData(e.data)
+                // sendData("test")
+                // if (rec.state == "inactive"){
+                //     let blob = new Blob(audioChunks,{type:'audio/webm'});
+                //     recordedAudio.src = URL.createObjectURL(blob);
+                //     recordedAudio.controls=true;
+                //     recordedAudio.autoplay=true;
+                // }
+            }
+        }
+
+        function handleWSConnection(){
+            audioChunks = [];
+            socket = new WebSocket('wss://dev-microcraft.microware1985.cn/asr_backend/asr/api/model/transcript/realtime?token=ad921d8d-f33e-4a67-9605-ddb043dfd071')
+        
+            socket.addEventListener('open', function (event) {
+                console.log('WebSocket 连接已打开。');
+
+                start_message = {
+                                    "message_type": "start_transcription",
+                                    "timestamp": 1730181366000,
+                                    "message_id": "b35a01de-3129-457e-aba1-255a1a6904ef",
+                                    "content": {
+                                        "audio_param":{
+                                            "format": "opus"
+                                        }
+                                    }
+                                }
+                
+                setTimeout(()=>{
+                    sendData(JSON.stringify(start_message));
+                }, 100);
+
+            });
+            
+            socket.addEventListener('message', function (event) {
+                console.log('收到消息:', event.data);
+                const jsonObj = JSON.parse(event.data);
+                if ("transcription_started" == jsonObj.message_type){
+                    console.log('start send audio');
+                    setTimeout(()=>{
+                        rec.start(20);
+                    }, 100);
+                }
+                if ("transcription_stopped" == jsonObj.message_type){
+                    console.log('stop ws');
+                    socket.close(1000, "用户主动断开连接");
+                    rec.stop();
+                }
+            });
+
+            // 当WebSocket连接关闭时触发
+            socket.addEventListener('close', function (event) {
+                console.log('WebSocket 连接已关闭。');
+            });
+            
+            // 当遇到错误时触发（例如：连接失败、传输数据失败等）
+            socket.addEventListener('error', function (event) {
+                console.error('WebSocket 出现错误。', event);
+            });
+            
+        }
+
+        function handleStop(){
+            stop_message = {
+                                "message_type": "stop_transcription",
+                                "timestamp": 1730181366000,
+                                "message_id": "37a1258b-33ae-4c9f-8345-004a1cf3987e",
+                                "content": {
+                                }
+                            }           
+            sendData(JSON.stringify(stop_message))
+            // rec.stop();
+        }
+
+        record.onclick = e => {
+          console.log('record was clicked')
+          record.disabled = true;
+          record.style.backgroundColor = "blue"
+          stopRecord.disabled=false;
+          handleWSConnection()
+        }
+
+        stopRecord.onclick = e => {
+          console.log("stopRecord was clicked")
+          record.disabled = false;
+          stop.disabled=true;
+          record.style.backgroundColor = "red"
+          handleStop()
+        }
+    </script>
+</body>
+</html>
